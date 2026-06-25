@@ -6,19 +6,46 @@ import express, {
   type NextFunction,
 } from "express";
 import cors from "cors";
-import { config } from "./config";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import { config, assertAuthConfig } from "./config";
 import { cotacaoSchema, toWebhookPayload } from "./schema";
 import { getPool } from "./db/pool";
+import { buildAuthRouter } from "./auth/routes";
+import { requireAuth } from "./auth/middleware";
 
 async function bootstrap() {
+  // Fail-closed: sem um JWT_SECRET forte, o servidor não sobe.
+  assertAuthConfig();
+
   const app = express();
 
-  app.use(cors({ origin: config.corsOrigin }));
-  app.use(express.json());
+  // Atrás de um proxy reverso (Docker/n8n): confia no 1º hop para obter o IP
+  // real do cliente (usado pelo rate limit).
+  app.set("trust proxy", 1);
+
+  // Cabeçalhos de segurança. CSP/COEP desligados para não quebrar o Vite
+  // (dev) nem o carregamento de imagens; o resto (HSTS, noSniff, frameguard,
+  // referrer-policy, etc.) fica ativo.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
+
+  app.use(cors({ origin: config.corsOrigin, credentials: true }));
+  app.use(express.json({ limit: "100kb" }));
+  app.use(cookieParser());
 
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
   });
+
+  // Autenticação (público: login/refresh/logout/register). Tudo abaixo de
+  // /api/cotacoes exige sessão válida.
+  app.use("/api/auth", buildAuthRouter());
+  app.use("/api/cotacoes", requireAuth);
 
   /**
    * Recebe a cotação validada do frontend e a repassa ao webhook (n8n)

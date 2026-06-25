@@ -1,3 +1,5 @@
+import { apiFetch } from "./auth/api.ts";
+
 export interface ProdutoPayload {
   material: string;
   quantidade: number;
@@ -74,11 +76,9 @@ export interface Mensagem {
   created_at: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
-
 /** Busca a lista de cotações (visão mestre da aba "Cotações"). */
 export async function listarCotacoes(): Promise<Cotacao[]> {
-  const response = await fetch(`${API_BASE}/api/cotacoes`);
+  const response = await apiFetch(`/api/cotacoes`);
 
   const data = (await response.json().catch(() => ({}))) as {
     cotacoes?: Cotacao[];
@@ -96,7 +96,7 @@ export async function listarCotacoes(): Promise<Cotacao[]> {
 
 /** Busca o detalhe de uma cotação pelo id. Retorna null se não existir. */
 export async function obterCotacao(id: number): Promise<Cotacao | null> {
-  const response = await fetch(`${API_BASE}/api/cotacoes/${id}`);
+  const response = await apiFetch(`/api/cotacoes/${id}`);
 
   if (response.status === 404) return null;
 
@@ -116,8 +116,8 @@ export async function obterCotacao(id: number): Promise<Cotacao | null> {
 
 /** Busca as conversas (respostas dos fornecedores) de uma cotação específica. */
 export async function listarConversas(quoteId: number): Promise<Conversa[]> {
-  const response = await fetch(
-    `${API_BASE}/api/cotacoes/conversas?quote_id=${quoteId}`,
+  const response = await apiFetch(
+    `/api/cotacoes/conversas?quote_id=${quoteId}`,
   );
 
   const data = (await response.json().catch(() => ({}))) as {
@@ -138,8 +138,8 @@ export async function listarConversas(quoteId: number): Promise<Conversa[]> {
 export async function listarMensagens(
   conversationId: number,
 ): Promise<Mensagem[]> {
-  const response = await fetch(
-    `${API_BASE}/api/cotacoes/conversas/${conversationId}/mensagens`,
+  const response = await apiFetch(
+    `/api/cotacoes/conversas/${conversationId}/mensagens`,
   );
 
   const data = (await response.json().catch(() => ({}))) as {
@@ -161,7 +161,7 @@ export async function atualizarResponsavel(
   id: number,
   responsible: Responsavel,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/cotacoes/conversas/${id}`, {
+  const response = await apiFetch(`/api/cotacoes/conversas/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ responsible }),
@@ -181,7 +181,7 @@ export async function atualizarResponsavel(
 export async function enviarCotacao(
   payload: CotacaoPayload,
 ): Promise<{ message: string }> {
-  const response = await fetch(`${API_BASE}/api/cotacoes`, {
+  const response = await apiFetch(`/api/cotacoes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

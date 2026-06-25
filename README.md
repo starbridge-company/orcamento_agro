@@ -58,6 +58,14 @@ npm install
 
 Instala tudo (back + front) num único `node_modules`.
 
+> **Rede com proxy/antivírus que intercepta TLS?** Se o `npm install` falhar com
+> `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, rode confiando na loja de certificados do
+> sistema (que já tem a CA corporativa) — sem desabilitar a verificação:
+>
+> ```bash
+> NODE_OPTIONS=--use-system-ca npm install
+> ```
+
 ## Desenvolvimento — uma porta, hot-reload
 
 ```bash
@@ -96,8 +104,12 @@ docker run -p 4000:4000 -e WEBHOOK_URL="https://seu-webhook" mvp-agro
 | `WEBHOOK_URL`        | _(URL do n8n já preenchida)_  | **Webhook que recebe a cotação.** Configurável.              |
 | `WEBHOOK_TIMEOUT_MS` | `15000`                       | Tempo máximo de espera pela resposta do webhook.             |
 | `CORS_ORIGIN`        | `http://localhost:4000`       | Só relevante se o frontend for servido em outra origem.      |
-| `DATABASE_URL`       | _(vazio)_                     | Conexão Postgres, usada pelas migrations.                    |
+| `DATABASE_URL`       | _(vazio)_                     | Conexão Postgres, usada pelas migrations e pela autenticação. |
 | `VITE_API_URL`       | _(vazio)_                     | Base da API. Vazio = mesma origem (`/api`). Vite só expõe `VITE_*`. |
+| `JWT_SECRET`         | _(obrigatório)_               | **Segredo HMAC que assina os access tokens.** >= 32 chars aleatórios. |
+| `AUTH_*` / `ARGON_*` | _(padrões sensatos)_          | TTLs, lockout, cookies e custos do argon2. Veja `.env.example`. |
+
+> Sem um `JWT_SECRET` forte (>= 32 caracteres) o servidor **não sobe** (fail-closed).
 
 ## Scripts
 
@@ -111,6 +123,7 @@ docker run -p 4000:4000 -e WEBHOOK_URL="https://seu-webhook" mvp-agro
 | `npm run migrate`   | Aplica as migrations pendentes no Postgres.                    |
 | `npm run migrate:down` | Reverte a última migration aplicada.                       |
 | `npm run migrate:status` | Lista migrations aplicadas/pendentes.                    |
+| `npm run create-user`  | Cria um usuário com senha hasheada (argon2). Veja abaixo.    |
 
 ## Migrations
 
@@ -146,3 +159,45 @@ tabelas é seguro (idempotente).
 - `502 / 504` → falha/timeout ao contatar o webhook
 
 `GET /api/health` — healthcheck (`{ "status": "ok" }`).
+
+## Autenticação (login seguro)
+
+Login com **JWT + argon2id**, sessão com **refresh token rotativo** e opção de
+**"lembrar de mim"**. Todo o app (UI + APIs de dados) fica atrás do login;
+públicos só `/api/health` e as rotas `/api/auth/*`.
+
+**Primeiro acesso — crie um usuário:**
+
+```bash
+# defina DATABASE_URL e JWT_SECRET no .env, rode as migrations e depois:
+npm run migrate
+CREATE_USER_PASSWORD='SuaSenhaForte123' npm run create-user -- \
+  --name "Seu Nome" --email voce@empresa.com --role admin
+```
+
+> A senha pode vir de `CREATE_USER_PASSWORD` (fora do histórico do shell), de
+> `--password`, ou ser **gerada** automaticamente (exibida uma vez) se omitida.
+> Roles disponíveis na tabela: `admin`, `manager`, `user`, `viewer`.
+
+**Endpoints (`/api/auth`):**
+
+| Rota            | Método | Descrição                                              |
+| --------------- | ------ | ------------------------------------------------------ |
+| `/login`        | POST   | `{ email, password, rememberMe? }` → cookies de sessão |
+| `/refresh`      | POST   | Rotaciona o refresh token e renova o access token      |
+| `/logout`       | POST   | Revoga a sessão e limpa os cookies                     |
+| `/me`           | GET    | Usuário autenticado atual                              |
+| `/register`     | POST   | Cadastro (desligado por padrão; `AUTH_ALLOW_REGISTRATION`) |
+
+**Medidas de segurança:**
+
+- **argon2id** (OWASP) para hash de senha; re-hash automático quando os custos sobem.
+- **Access token** JWT curto (15 min) + **refresh token rotativo** com
+  **detecção de reuso**: reapresentar um token já rotacionado revoga a família
+  inteira (resposta a roubo de token).
+- Tokens em **cookies httpOnly + SameSite=Strict + Secure** (HTTPS) — imunes a
+  XSS e a CSRF. Refresh token escopado em `path=/api/auth`.
+- **Rate limit** por IP + **bloqueio de conta** após N tentativas (lockout).
+- Mensagens genéricas e verify de tempo constante (**sem enumeração de contas**).
+- Apenas o **SHA-256** do refresh token é guardado no banco (nunca o valor cru).
+- `JWT_SECRET` fraco/ausente impede o servidor de subir (**fail-closed**).

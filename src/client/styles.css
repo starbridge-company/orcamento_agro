@@ -1607,3 +1607,182 @@ select {
     font-size: 0.62rem;
   }
 }
+
+/* ============================================================
+   AUTENTICAÇÃO — login, sessão no header, "lembrar de mim"
+   ============================================================ */
+
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---- Menu do usuário (header escuro) ---- */
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-menu__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.25);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-menu__info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.user-menu__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu__role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: capitalize;
+}
+
+.user-menu__logout {
+  height: 38px;
+}
+
+/* ---- Tela de login ---- */
+.login-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 20px;
+  position: relative;
+}
+
+.login-screen__theme {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+
+.login-screen__theme:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--text-primary);
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 400px;
+  gap: 18px;
+}
+
+.login-panel__brand {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 4px;
+}
+
+.login-panel__brand img {
+  height: 30px;
+  width: auto;
+  object-fit: contain;
+  filter: var(--logo-filter);
+}
+
+.login-screen__footer {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* ---- Checkbox ("lembrar de mim") ---- */
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: hsl(var(--accent));
+  cursor: pointer;
+}
+
+/* ---- Campo com botão sufixo (mostrar/ocultar senha) ---- */
+.input-affix {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-affix .input {
+  padding-right: 82px;
+}
+
+.input-affix__btn {
+  position: absolute;
+  right: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--accent));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.input-affix__btn:hover {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+/* ---- Loader enquanto a sessão é verificada ---- */
+.auth-loading {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Em telas estreitas, mostra só o avatar + Sair (esconde nome/role). */
+@media (max-width: 640px) {
+  .user-menu__info {
+    display: none;
+  }
+}
