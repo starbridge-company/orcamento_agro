@@ -111,19 +111,21 @@ export function QuotesList() {
                     }
                   }}
                 >
-                  <td>
+                  <td data-label="Cotação">
                     <span className="quote-id">#{c.id}</span>
                   </td>
-                  <td>
+                  <td className="col-stack" data-label="Solicitante">
                     <span className="supplier-name">{c.buyer_name}</span>
                     <span className="supplier-city">{c.email}</span>
                   </td>
-                  <td className="nowrap">
+                  <td className="nowrap" data-label="Cidade">
                     {c.city}
                     {c.state ? `/${c.state}` : ""}
                   </td>
-                  <td className="nowrap">{formatDate(c.created_at)}</td>
-                  <td className="col-mats">
+                  <td className="nowrap" data-label="Data">
+                    {formatDate(c.created_at)}
+                  </td>
+                  <td className="col-mats" data-label="Materiais">
                     {c.products.length > 0 ? (
                       <div className="mat-chips">
                         {c.products.map((p) => (
@@ -136,7 +138,7 @@ export function QuotesList() {
                       <span className="cell-empty">—</span>
                     )}
                   </td>
-                  <td className="col-center">
+                  <td className="col-center" data-label="Respostas">
                     <span
                       className={`count-badge ${
                         c.conversation_count > 0 ? "" : "count-badge--zero"
@@ -145,7 +147,7 @@ export function QuotesList() {
                       {c.conversation_count}
                     </span>
                   </td>
-                  <td className="col-chevron" aria-hidden>
+                  <td className="col-chevron" aria-hidden data-label="">
                     ›
                   </td>
                 </tr>

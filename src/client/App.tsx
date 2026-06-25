@@ -56,7 +56,9 @@ function Layout() {
           }
         >
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-          {theme === "dark" ? "Modo claro" : "Modo escuro"}
+          <span className="theme-toggle__text">
+            {theme === "dark" ? "Modo claro" : "Modo escuro"}
+          </span>
         </button>
       </header>
 

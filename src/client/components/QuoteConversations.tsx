@@ -85,6 +85,36 @@ function Cell({ value }: { value: string | number | null }) {
   return <>{value}</>;
 }
 
+/**
+ * Coluna "Proposta": agrupa os termos comerciais (prazo, pagamento, frete,
+ * impostos, volume, validade) numa lista rótulo→valor, exibindo só os campos
+ * preenchidos. Reduz a tabela de ~14 para ~9 colunas.
+ */
+function ProposalCell({ conversa }: { conversa: Conversa }) {
+  const itens: Array<[string, string | null]> = [
+    ["Prazo", conversa.delivery_time],
+    ["Pagamento", conversa.payment_method],
+    ["Frete", conversa.shipping],
+    ["Impostos", conversa.taxes],
+    ["Volume", conversa.volume],
+    ["Validade", conversa.proposal_validity],
+  ];
+  const preenchidos = itens.filter(([, v]) => v != null && v !== "");
+
+  if (preenchidos.length === 0) return <span className="cell-empty">—</span>;
+
+  return (
+    <dl className="meta-list">
+      {preenchidos.map(([label, value]) => (
+        <div className="meta-list__row" key={label}>
+          <dt className="meta-list__key">{label}</dt>
+          <dd className="meta-list__value">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 interface PopoverCoords {
   top: number;
   left: number;
@@ -718,12 +748,7 @@ export function QuoteConversations() {
                 <th>Telefone</th>
                 <th>Status</th>
                 <th className="col-msg">Mensagem inicial</th>
-                <th>Prazo</th>
-                <th>Pagamento</th>
-                <th>Frete</th>
-                <th>Impostos</th>
-                <th>Volume</th>
-                <th>Validade</th>
+                <th className="col-proposta">Proposta</th>
                 <th className="col-meta">Observações / especificações</th>
               </tr>
             </thead>
@@ -736,6 +761,7 @@ export function QuoteConversations() {
                 >
                   <td
                     className="col-chat"
+                    data-label="Conversa"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -754,15 +780,20 @@ export function QuoteConversations() {
                       </span>
                     </button>
                   </td>
-                  <td onClick={(e) => e.stopPropagation()}>
+                  <td
+                    data-label="Responsável"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <ResponsibleSelect
                       value={c.responsible}
                       saving={savingId === c.id}
                       onChange={(v) => alterarResponsavel(c, v)}
                     />
                   </td>
-                  <td className="col-center num">{c.dispatch_number}</td>
-                  <td>
+                  <td className="col-center num" data-label="Disparo">
+                    {c.dispatch_number}
+                  </td>
+                  <td className="col-stack card-title" data-label="Fornecedor">
                     <span className="supplier-name">
                       <Cell value={c.supplier_name} />
                     </span>
@@ -770,40 +801,25 @@ export function QuoteConversations() {
                       <span className="supplier-city">{c.supplier_city}</span>
                     )}
                   </td>
-                  <td className="nowrap">
+                  <td className="nowrap" data-label="Telefone">
                     <Cell value={c.phone} />
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`badge badge--${statusVariant(c.status)}`}>
                       {c.status}
                     </span>
                   </td>
-                  <td className="col-msg">
+                  <td className="col-msg" data-label="Mensagem inicial">
                     {c.initial_message ? (
                       <MessagePreview text={c.initial_message} />
                     ) : (
                       <span className="cell-empty">—</span>
                     )}
                   </td>
-                  <td>
-                    <Cell value={c.delivery_time} />
+                  <td className="col-proposta" data-label="Proposta">
+                    <ProposalCell conversa={c} />
                   </td>
-                  <td>
-                    <Cell value={c.payment_method} />
-                  </td>
-                  <td>
-                    <Cell value={c.shipping} />
-                  </td>
-                  <td>
-                    <Cell value={c.taxes} />
-                  </td>
-                  <td>
-                    <Cell value={c.volume} />
-                  </td>
-                  <td>
-                    <Cell value={c.proposal_validity} />
-                  </td>
-                  <td className="col-meta">
+                  <td className="col-meta" data-label="Observações / especificações">
                     <MetadataCell metadata={c.metadata} />
                   </td>
                 </tr>

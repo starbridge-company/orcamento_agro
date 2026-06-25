@@ -594,6 +594,10 @@ select {
   min-width: 240px;
 }
 
+.col-proposta {
+  min-width: 200px;
+}
+
 .quote-id {
   display: block;
   font-weight: 700;
@@ -1354,23 +1358,252 @@ select {
   color: var(--text-muted);
 }
 
-/* ---- Responsivo ---- */
+/* ============================================================
+   RESPONSIVO — funciona de telões a celulares pequenos
+   ============================================================ */
 
-@media (max-width: 640px) {
-  .panel {
-    padding: 20px;
+/* Laptops menores / tablets landscape: a aba larga usa a tela toda */
+@media (max-width: 1100px) {
+  .page--wide {
+    max-width: 100%;
   }
+}
+
+/* Tablets retrato / celulares grandes: TABELAS viram CARTÕES empilhados */
+@media (max-width: 768px) {
+  .page {
+    padding: 20px 14px 48px;
+  }
+  .panel {
+    padding: 22px 18px;
+  }
+  /* cabeçalho de seção quebra se faltar espaço para o botão de ação */
+  .section__head {
+    flex-wrap: wrap;
+  }
+
+  /* ---- Tabela -> cartões ---- */
+  .table-wrap {
+    overflow: visible;
+    border: none;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .data-table {
+    font-size: 13px;
+  }
+  /* esconde o cabeçalho da tabela (acessível, fora da tela) */
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .data-table,
+  .data-table tbody {
+    display: block;
+    width: auto;
+  }
+  /* cada linha vira um cartão (flex column → permite reordenar células) */
+  .data-table tr {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface-solid);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  /* zera zebra/hover que não fazem sentido em cartão */
+  .data-table tbody tr:nth-child(even) td,
+  .data-table tbody tr:hover td {
+    background: transparent;
+  }
+  .data-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: auto;
+    min-height: 44px;
+    padding: 12px 16px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    font-size: 13.5px;
+  }
+  .data-table tr td:last-child {
+    border-bottom: none;
+  }
+  /* rótulo da coluna (vem do data-label de cada td) */
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  /* células decorativas / sem rótulo */
+  .data-table td.col-chevron {
+    display: none;
+  }
+  /* sem o chevron (escondido), a célula anterior é a última visível: tira a borda */
+  .data-table td:has(+ .col-chevron) {
+    border-bottom: none;
+  }
+  .data-table td[data-label=""]::before {
+    content: none;
+  }
+
+  /* células de conteúdo em bloco: rótulo em cima, conteúdo embaixo */
+  .data-table td.col-msg,
+  .data-table td.col-meta,
+  .data-table td.col-mats,
+  .data-table td.col-proposta,
+  .data-table td.col-stack {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    gap: 5px;
+    min-width: 0;
+    max-width: none;
+    width: auto;
+  }
+  .msg-preview {
+    -webkit-line-clamp: 3;
+    width: auto;
+  }
+  .mat-chips {
+    justify-content: flex-start;
+  }
+
+  /* "Fornecedor" vira o título do cartão: topo, com leve destaque */
+  .data-table td.card-title {
+    order: -1;
+    background: var(--surface-hover);
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .data-table td.card-title::before {
+    color: hsl(var(--accent));
+  }
+  .data-table td.card-title .supplier-name {
+    font-size: 1rem;
+  }
+
+  /* botão de chat vira um CTA "Abrir conversa" full-width no rodapé do cartão */
+  .data-table td.col-chat {
+    order: 99;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+  }
+  .data-table td.col-chat::before {
+    content: none;
+  }
+  .col-chat .chat-open-btn {
+    width: 100%;
+    height: 42px;
+    border-radius: var(--radius-md);
+    gap: 8px;
+    background: rgba(var(--accent-rgb), 0.12);
+    color: hsl(var(--accent));
+  }
+  .col-chat .chat-open-btn__tip {
+    display: inline;
+    position: static;
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    background: none;
+    color: inherit;
+    box-shadow: none;
+    padding: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .col-chat .chat-open-btn__tip::before {
+    content: none;
+  }
+}
+
+/* Celulares */
+@media (max-width: 600px) {
   .grid-2,
   .product-grid {
     grid-template-columns: 1fr;
   }
-  .panel__title {
-    font-size: 1.4rem;
+  .panel {
+    padding: 18px 16px;
   }
+  .panel__title {
+    font-size: 1.35rem;
+  }
+  .app-header {
+    padding: 14px 16px;
+  }
+  /* abas ocupam a largura toda e dividem o espaço */
+  .tabs {
+    display: flex;
+    width: 100%;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+  }
+  /* botão de envio do formulário ocupa a largura toda */
+  .form-footer {
+    justify-content: stretch;
+  }
+  .form-footer .btn {
+    width: 100%;
+  }
+  .quote-summary__meta {
+    font-size: 0.82rem;
+  }
+  /* chat em tela cheia */
   .chat-drawer {
     width: 100vw;
   }
   .chat-bubble {
-    max-width: 85%;
+    max-width: 88%;
+  }
+}
+
+/* Celulares pequenos */
+@media (max-width: 400px) {
+  .app-header {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .app-header__logo {
+    height: 24px;
+  }
+  .theme-toggle {
+    padding: 0;
+    width: 38px;
+    justify-content: center;
+  }
+  /* só o ícone do tema (sem texto) */
+  .theme-toggle__text {
+    display: none;
+  }
+  .panel__title {
+    font-size: 1.2rem;
+  }
+  .kicker {
+    font-size: 0.62rem;
   }
 }
