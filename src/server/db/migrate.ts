@@ -44,8 +44,10 @@ function listMigrationFiles(): string[] {
 }
 
 async function ensureMigrationsTable(client: Client): Promise<void> {
+  // Tudo das migrations (inclusive o controle) vive no schema `agro`.
+  await client.query("CREATE SCHEMA IF NOT EXISTS agro;");
   await client.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
+    CREATE TABLE IF NOT EXISTS agro.schema_migrations (
       name       TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -54,7 +56,7 @@ async function ensureMigrationsTable(client: Client): Promise<void> {
 
 async function appliedSet(client: Client): Promise<Set<string>> {
   const { rows } = await client.query<{ name: string }>(
-    "SELECT name FROM schema_migrations ORDER BY name",
+    "SELECT name FROM agro.schema_migrations ORDER BY name",
   );
   return new Set(rows.map((r) => r.name));
 }
@@ -74,7 +76,7 @@ async function runUp(client: Client): Promise<void> {
     await client.query("BEGIN");
     try {
       if (up) await client.query(up);
-      await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [file]);
+      await client.query("INSERT INTO agro.schema_migrations (name) VALUES ($1)", [file]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -98,7 +100,7 @@ async function runDown(client: Client): Promise<void> {
   await client.query("BEGIN");
   try {
     if (down) await client.query(down);
-    await client.query("DELETE FROM schema_migrations WHERE name = $1", [last]);
+    await client.query("DELETE FROM agro.schema_migrations WHERE name = $1", [last]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
