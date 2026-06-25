@@ -1,5 +1,8 @@
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useTheme } from "./theme.ts";
 import { QuoteForm } from "./components/QuoteForm.tsx";
+import { QuotesList } from "./components/QuotesList.tsx";
+import { QuoteConversations } from "./components/QuoteConversations.tsx";
 
 function MoonIcon() {
   return (
@@ -29,11 +32,15 @@ function SunIcon() {
   );
 }
 
-export default function App() {
+/** Chrome comum a todas as rotas: header, abas de navegação e rodapé. */
+function Layout() {
   const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
+  // Aba "Cotações" usa mais largura para a tabela respirar.
+  const wide = pathname.startsWith("/cotacoes");
 
   return (
-    <div className="page">
+    <div className={`page ${wide ? "page--wide" : ""}`}>
       <header className="app-header">
         <img
           className="app-header__logo"
@@ -53,11 +60,42 @@ export default function App() {
         </button>
       </header>
 
-      <QuoteForm />
+      <nav className="tabs" aria-label="Seções">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `tab ${isActive ? "tab--active" : ""}`}
+        >
+          Nova cotação
+        </NavLink>
+        <NavLink
+          to="/cotacoes"
+          className={({ isActive }) => `tab ${isActive ? "tab--active" : ""}`}
+        >
+          Cotações
+        </NavLink>
+      </nav>
+
+      <Outlet />
 
       <footer className="app-footer">
         Starbridge · Cotação de insumos &copy; {new Date().getFullYear()}
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<QuoteForm />} />
+        <Route path="cotacoes" element={<QuotesList />} />
+        {/* splat: a mesma rota cobre /cotacoes/:id e /cotacoes/:id/chat/:conversaId,
+            sem remontar o componente ao abrir o chat. */}
+        <Route path="cotacoes/:id/*" element={<QuoteConversations />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
 }

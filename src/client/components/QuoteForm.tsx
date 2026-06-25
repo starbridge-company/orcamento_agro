@@ -312,8 +312,8 @@ export function QuoteForm() {
                       aria-invalid={!!pErr.unidade}
                     >
                       {UNIDADES.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
+                        <option key={u.value} value={u.value}>
+                          {u.label}
                         </option>
                       ))}
                     </select>
