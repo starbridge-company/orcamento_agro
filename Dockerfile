@@ -31,4 +31,7 @@ COPY migrations ./migrations
 COPY tsconfig.json ./
 
 EXPOSE 4000
-CMD ["npm", "start"]   # tsx src/server/index.ts (serve dist/ + /api)
+# Sobe o servidor (tsx src/server/index.ts): serve o build dist/ + a API /api.
+# IMPORTANTE: nada de comentário na MESMA linha do CMD em exec-form (JSON),
+# senão o Docker cai para shell-form e tenta executar `["npm", "start"]`.
+CMD ["npm", "start"]
