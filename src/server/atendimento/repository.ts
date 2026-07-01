@@ -192,6 +192,69 @@ export async function applyAgentOutcome(
   }
 }
 
+/**
+ * Persiste a proposta extraída pelo agente nas colunas de `quote_conversations`
+ * (prazo/pagamento/frete/impostos/validade) + itens/total/observações no
+ * `metadata` (JSONB). Usa COALESCE para não apagar dados já coletados e faz
+ * MERGE do metadata (não perde observações anteriores).
+ */
+export async function saveProposal(
+  conversationId: string,
+  p: import("./agent").AgentProposal,
+): Promise<void> {
+  const clean = (v?: string): string | null => {
+    const s = (v ?? "").trim();
+    return s ? s : null;
+  };
+
+  const itensStr =
+    (p.itens ?? [])
+      .map((i) => {
+        const nome = [i.quantidade, i.descricao].filter(Boolean).join(" de ");
+        const preco = [i.preco_unitario, i.preco_total]
+          .filter(Boolean)
+          .join(" = ");
+        return preco ? `${nome} — ${preco}` : nome;
+      })
+      .filter(Boolean)
+      .join("; ") || null;
+
+  const obsStr =
+    (p.observacoes ?? []).map((o) => o.trim()).filter(Boolean).join("; ") ||
+    null;
+
+  const meta: Record<string, unknown> = {};
+  if (clean(p.total)) meta.total = clean(p.total);
+  if (itensStr) meta.itens = itensStr;
+  if (obsStr) meta.observacoes = obsStr;
+  const metaJson = Object.keys(meta).length > 0 ? JSON.stringify(meta) : null;
+
+  const pool = getPool();
+  await pool.query(
+    `UPDATE agro.quote_conversations SET
+        delivery_time     = COALESCE($2, delivery_time),
+        payment_method    = COALESCE($3, payment_method),
+        shipping          = COALESCE($4, shipping),
+        taxes             = COALESCE($5, taxes),
+        proposal_validity = COALESCE($6, proposal_validity),
+        metadata          = CASE
+                              WHEN $7::jsonb IS NULL THEN metadata
+                              ELSE COALESCE(metadata, '{}'::jsonb) || $7::jsonb
+                            END,
+        updated_at        = now()
+      WHERE id = $1`,
+    [
+      conversationId,
+      clean(p.prazo),
+      clean(p.pagamento),
+      clean(p.frete),
+      clean(p.impostos),
+      clean(p.validade),
+      metaJson,
+    ],
+  );
+}
+
 /** Grava a resposta do agente (author='system'). */
 export async function insertAgentMessage(m: {
   conversationId: string;

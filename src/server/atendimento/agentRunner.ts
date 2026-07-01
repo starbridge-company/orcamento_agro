@@ -18,6 +18,7 @@ import {
   getConversationForAgent,
   getRecentMessages,
   insertAgentMessage,
+  saveProposal,
 } from "./repository";
 import { agentShouldHandle } from "./gate";
 
@@ -36,13 +37,18 @@ export async function runAgentForConversation(
   }
 
   const history = await getRecentMessages(conversationId, HISTORY_WINDOW);
-  const { message, tag, status, reasoning } = await generateReply(
+  const { message, tag, status, reasoning, proposal } = await generateReply(
     conv.initialMessage ?? "",
     history,
   );
   console.log(
-    `[agent] conversa ${conversationId} tag=${tag} status="${status}" | ${reasoning}`,
+    `[agent] conversa ${conversationId} tag=${tag} status="${status}"${proposal ? " (proposta extraída)" : ""} | ${reasoning}`,
   );
+
+  // Salva a proposta estruturada (o mais importante) sempre que houver dados.
+  if (proposal) {
+    await saveProposal(conversationId, proposal);
+  }
 
   if (message && message.trim()) {
     const to = normalizePhone(config.cotacao.dispatchTestRecipient) || conv.phone || "";

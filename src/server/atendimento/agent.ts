@@ -12,11 +12,30 @@ import { extractJson } from "../cotacoes/util/json";
 
 export type AgentTag = "atendimento_ia" | "resolvido_n1" | "atendimento_n2";
 
+export interface ProposalItem {
+  descricao: string;
+  quantidade?: string;
+  preco_unitario?: string;
+  preco_total?: string;
+}
+
+export interface AgentProposal {
+  itens?: ProposalItem[];
+  total?: string;
+  prazo?: string;
+  pagamento?: string;
+  frete?: string;
+  impostos?: string;
+  validade?: string;
+  observacoes?: string[];
+}
+
 export interface AgentOutput {
   message: string;
   tag: AgentTag;
   status: string;
   reasoning: string;
+  proposal?: AgentProposal;
 }
 
 const VALID_TAGS = new Set<AgentTag>([
@@ -50,8 +69,30 @@ function deriveStatus(tag: AgentTag): string {
 function buildSystemPrompt(originalQuote: string): string {
   return `# FORMATO JSON OBRIGATÓRIO
 Retorne SEMPRE, e somente, este JSON:
-{ "message": "sua mensagem", "tag_chatwoot": "atendimento_ia", "status": "em atendimento", "reasoning": "Etapa X: motivo" }
+{ "message": "sua mensagem", "tag_chatwoot": "atendimento_ia", "status": "em atendimento", "proposta": { ... }, "reasoning": "Etapa X: motivo" }
 Tags válidas: "atendimento_ia" | "resolvido_n1" | "atendimento_n2"
+
+# PROPOSTA (campo "proposta") — A PARTE MAIS IMPORTANTE
+SEMPRE que já tiver algum dado de preço/condição, inclua o objeto "proposta" com
+tudo que coletou até agora (parcial é ok; complete na Etapa 3/4). Formato:
+"proposta": {
+  "itens": [
+    { "descricao": "NOME EXATO DA COTAÇÃO", "quantidade": "10 t", "preco_unitario": "R$ 40/t", "preco_total": "R$ 400" }
+  ],
+  "total": "R$ 900",
+  "prazo": "até 7 dias úteis",
+  "pagamento": "qualquer forma",
+  "frete": "R$ 100",
+  "impostos": "não há imposto",
+  "validade": "7 dias",
+  "observacoes": ["preço por item não detalhado", "marca alternativa: ..."]
+}
+Regras da proposta:
+- Copie os nomes dos itens EXATAMENTE como na cotação original.
+- Omita (ou deixe "") os campos que ainda não souber.
+- "observacoes" captura divergências e condições especiais (marca alternativa,
+  quantidade parcial, retirada em loja, entrega só em certos dias, etc.).
+- Mantenha as observações acumuladas ao longo da conversa (não as perca).
 
 # STATUS DA CONVERSA (campo "status")
 Escolha SEMPRE o status que reflete o estado ATUAL após a sua resposta:
@@ -152,7 +193,60 @@ Mensagem: "Vou encaminhar para o comprador responsável."
 ${originalQuote || "(cotação original indisponível)"}`;
 }
 
-/** Parser robusto do output do agente → { message, tag, reasoning }. */
+function asStr(v: unknown): string | undefined {
+  if (typeof v === "string") return v.trim() || undefined;
+  if (v == null) return undefined;
+  return String(v).trim() || undefined;
+}
+
+/** Extrai o objeto `proposta` do output do agente (defensivo). */
+function parseProposal(raw: unknown): AgentProposal | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const p = raw as Record<string, unknown>;
+
+  const itens = (Array.isArray(p.itens) ? p.itens : [])
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+    .map((it) => ({
+      descricao: String(it.descricao ?? it.produto ?? it.nome ?? "").trim(),
+      quantidade: asStr(it.quantidade),
+      preco_unitario: asStr(it.preco_unitario ?? it.precoUnitario),
+      preco_total: asStr(it.preco_total ?? it.precoTotal ?? it.total),
+    }))
+    .filter((i) => i.descricao);
+
+  const obsRaw = p.observacoes ?? p.observações ?? p.obs;
+  const observacoes = Array.isArray(obsRaw)
+    ? obsRaw.map((o) => String(o).trim()).filter(Boolean)
+    : typeof obsRaw === "string" && obsRaw.trim()
+      ? [obsRaw.trim()]
+      : [];
+
+  const proposal: AgentProposal = {
+    itens,
+    total: asStr(p.total),
+    prazo: asStr(p.prazo),
+    pagamento: asStr(p.pagamento),
+    frete: asStr(p.frete),
+    impostos: asStr(p.impostos),
+    validade: asStr(p.validade),
+    observacoes,
+  };
+
+  const hasContent =
+    itens.length > 0 ||
+    observacoes.length > 0 ||
+    !!(
+      proposal.total ??
+      proposal.prazo ??
+      proposal.pagamento ??
+      proposal.frete ??
+      proposal.impostos ??
+      proposal.validade
+    );
+  return hasContent ? proposal : undefined;
+}
+
+/** Parser robusto do output do agente → { message, tag, status, proposal, reasoning }. */
 export function parseAgentOutput(raw: string): AgentOutput {
   let data = extractJson(raw);
   if (Array.isArray(data)) data = data[0];
@@ -165,7 +259,8 @@ export function parseAgentOutput(raw: string): AgentOutput {
     const rawStatus = String(obj.status ?? "").trim().toLowerCase();
     const status = STATUS_CANONICAL.get(rawStatus) ?? deriveStatus(tag);
     const reasoning = String(obj.reasoning ?? "");
-    return { message, tag, status, reasoning };
+    const proposal = parseProposal(obj.proposta ?? obj.proposal);
+    return { message, tag, status, reasoning, proposal };
   }
 
   // Falha de parsing: transfere para humano (defensivo, como no n8n).
