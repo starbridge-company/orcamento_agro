@@ -3,7 +3,8 @@
  *   áudio  -> transcrição
  *   imagem -> descrição (+ legenda, se houver)
  *   pdf    -> extração do orçamento (+ legenda, se houver)
- *   outros -> "Arquivo não suportado" (o agente pede reenvio em PDF)
+ *   contato-> descrição da indicação (nome/telefone) — NÃO é documento
+ *   outros -> "Arquivo não suportado" (o agente pede reenvio em texto/PDF/áudio)
  */
 import type { ParsedInbound } from "./parse";
 import { getMediaBase64 } from "../cotacoes/providers/evolution";
@@ -20,6 +21,13 @@ function messageKey(raw: unknown): unknown {
 export async function resolveMediaText(parsed: ParsedInbound): Promise<string> {
   if (parsed.mediaType === "text") return parsed.text ?? "";
   if (parsed.mediaType === "unsupported") return "Arquivo não suportado";
+  if (parsed.mediaType === "contact") {
+    // Um vCard não precisa de download: já veio o nome/telefone no parse.
+    const info = (parsed.text ?? "").trim();
+    return info
+      ? `[Cartão de contato de terceiro compartilhado: ${info}]`
+      : "[Cartão de contato de terceiro compartilhado]";
+  }
 
   const { base64, mimetype } = await getMediaBase64(messageKey(parsed.raw));
 
