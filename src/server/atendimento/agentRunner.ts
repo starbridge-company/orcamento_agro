@@ -14,7 +14,7 @@ import { normalizePhone } from "../cotacoes/pipeline/phone";
 import { sendText } from "../cotacoes/providers/evolution";
 import { generateReply } from "./agent";
 import {
-  applyAgentTag,
+  applyAgentOutcome,
   getConversationForAgent,
   getRecentMessages,
   insertAgentMessage,
@@ -36,11 +36,13 @@ export async function runAgentForConversation(
   }
 
   const history = await getRecentMessages(conversationId, HISTORY_WINDOW);
-  const { message, tag, reasoning } = await generateReply(
+  const { message, tag, status, reasoning } = await generateReply(
     conv.initialMessage ?? "",
     history,
   );
-  console.log(`[agent] conversa ${conversationId} tag=${tag} | ${reasoning}`);
+  console.log(
+    `[agent] conversa ${conversationId} tag=${tag} status="${status}" | ${reasoning}`,
+  );
 
   if (message && message.trim()) {
     const to = normalizePhone(config.cotacao.dispatchTestRecipient) || conv.phone || "";
@@ -60,6 +62,6 @@ export async function runAgentForConversation(
     console.log(`[agent] sem mensagem a enviar (tag=${tag})`);
   }
 
-  // Aplica a classificação ao estado da conversa (handoff / resolvido).
-  await applyAgentTag(conversationId, tag);
+  // Atualiza o status da conversa (e escala para humano se for o caso).
+  await applyAgentOutcome(conversationId, tag, status);
 }

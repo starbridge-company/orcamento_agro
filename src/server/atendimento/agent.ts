@@ -15,6 +15,7 @@ export type AgentTag = "atendimento_ia" | "resolvido_n1" | "atendimento_n2";
 export interface AgentOutput {
   message: string;
   tag: AgentTag;
+  status: string;
   reasoning: string;
 }
 
@@ -24,11 +25,45 @@ const VALID_TAGS = new Set<AgentTag>([
   "atendimento_n2",
 ]);
 
+/** Vocabulário de status da conversa (reflete o andamento no painel). */
+export const CONVERSATION_STATUSES = [
+  "aguardando retorno fornecedor", // ainda não respondeu (inicial)
+  "em atendimento", // fornecedor respondendo / coletando dados
+  "em negociação", // negociando preço/condições (vai p/ humano)
+  "aguardando confirmação", // agente enviou a confirmação (Etapa 3)
+  "proposta recebida", // fornecedor confirmou o orçamento (Etapa 4)
+  "fornecedor sem o produto", // não trabalha com os itens / sem interesse
+  "aguardando humano", // transferido para o comprador
+] as const;
+
+const STATUS_CANONICAL = new Map(
+  CONVERSATION_STATUSES.map((s) => [s.toLowerCase(), s]),
+);
+
+/** Status padrão coerente com a tag, quando o agente não devolve um válido. */
+function deriveStatus(tag: AgentTag): string {
+  if (tag === "atendimento_n2") return "em negociação";
+  if (tag === "resolvido_n1") return "proposta recebida";
+  return "em atendimento";
+}
+
 function buildSystemPrompt(originalQuote: string): string {
   return `# FORMATO JSON OBRIGATÓRIO
 Retorne SEMPRE, e somente, este JSON:
-{ "message": "sua mensagem", "tag_chatwoot": "atendimento_ia", "reasoning": "Etapa X: motivo" }
+{ "message": "sua mensagem", "tag_chatwoot": "atendimento_ia", "status": "em atendimento", "reasoning": "Etapa X: motivo" }
 Tags válidas: "atendimento_ia" | "resolvido_n1" | "atendimento_n2"
+
+# STATUS DA CONVERSA (campo "status")
+Escolha SEMPRE o status que reflete o estado ATUAL após a sua resposta:
+- "em atendimento": o fornecedor está respondendo e você está coletando os dados.
+- "aguardando confirmação": você enviou a confirmação do orçamento (Etapa 3) e espera o "sim".
+- "em negociação": o fornecedor está negociando preço/condições ou pediu algo que exige humano.
+- "proposta recebida": o fornecedor CONFIRMOU o orçamento (Etapa 4 positiva).
+- "fornecedor sem o produto": o fornecedor não trabalha com os itens / não tem interesse.
+- "aguardando humano": você transferiu para o comprador humano.
+Coerência: tag "atendimento_ia" → "em atendimento" ou "aguardando confirmação";
+tag "atendimento_n2" → "em negociação" (ou "aguardando humano");
+tag "resolvido_n1" → "proposta recebida" ou "fornecedor sem o produto".
 
 # MISSÃO
 Coletar o orçamento de um fornecedor de INSUMOS DE AGRONEGÓCIO via WhatsApp, de
@@ -125,16 +160,19 @@ export function parseAgentOutput(raw: string): AgentOutput {
   if (data && typeof data === "object") {
     const obj = data as Record<string, unknown>;
     const message = String(obj.message ?? obj.mensagem ?? "").trim();
-    let tag = String(obj.tag_chatwoot ?? obj.tag ?? "atendimento_ia");
-    if (!VALID_TAGS.has(tag as AgentTag)) tag = "atendimento_ia";
+    let tag = String(obj.tag_chatwoot ?? obj.tag ?? "atendimento_ia") as AgentTag;
+    if (!VALID_TAGS.has(tag)) tag = "atendimento_ia";
+    const rawStatus = String(obj.status ?? "").trim().toLowerCase();
+    const status = STATUS_CANONICAL.get(rawStatus) ?? deriveStatus(tag);
     const reasoning = String(obj.reasoning ?? "");
-    return { message, tag: tag as AgentTag, reasoning };
+    return { message, tag, status, reasoning };
   }
 
   // Falha de parsing: transfere para humano (defensivo, como no n8n).
   return {
     message: "",
     tag: "atendimento_n2",
+    status: "aguardando humano",
     reasoning: "Erro de parsing da resposta do agente",
   };
 }

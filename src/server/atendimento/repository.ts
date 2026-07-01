@@ -164,30 +164,30 @@ export async function getRecentMessages(
 }
 
 /**
- * Aplica a classificação do agente ao estado da conversa (equivalente às
- * mudanças de label do Chatwoot):
- *   atendimento_n2 -> responsible='Humano' (escala; IA para de responder)
- *   resolvido_n1   -> status='resolvido'   (encerra o atendimento da IA)
- *   atendimento_ia -> sem mudança
+ * Aplica o resultado do agente ao estado da conversa:
+ *   - status: sempre atualizado (reflete o andamento no painel).
+ *   - responsible: vira 'Humano' quando a tag é atendimento_n2 (escala); nos
+ *     demais casos permanece 'Agente'.
  */
-export async function applyAgentTag(
+export async function applyAgentOutcome(
   conversationId: string,
   tag: string,
+  status: string,
 ): Promise<void> {
   const pool = getPool();
   if (tag === "atendimento_n2") {
     await pool.query(
       `UPDATE agro.quote_conversations
-          SET responsible = 'Humano', status = 'aguardando humano', updated_at = now()
+          SET status = $2, responsible = 'Humano', updated_at = now()
         WHERE id = $1`,
-      [conversationId],
+      [conversationId, status],
     );
-  } else if (tag === "resolvido_n1") {
+  } else {
     await pool.query(
       `UPDATE agro.quote_conversations
-          SET status = 'resolvido', updated_at = now()
+          SET status = $2, updated_at = now()
         WHERE id = $1`,
-      [conversationId],
+      [conversationId, status],
     );
   }
 }
