@@ -9,14 +9,6 @@ const projectRoot = path.resolve(currentDir, "../.."); // raiz do projeto
 // ambiente (em produção/Docker elas vêm do runtime).
 dotenv.config({ path: path.join(projectRoot, ".env") });
 
-function required(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback;
-  if (!value) {
-    throw new Error(`Variável de ambiente obrigatória ausente: ${name}`);
-  }
-  return value;
-}
-
 function num(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
@@ -30,6 +22,11 @@ function bool(name: string, fallback: boolean): boolean {
   return raw === "true" || raw === "1";
 }
 
+function str(name: string, fallback = ""): string {
+  const raw = process.env[name];
+  return raw === undefined || raw === "" ? fallback : raw;
+}
+
 const isDev = process.env.NODE_ENV === "development";
 
 export const config = {
@@ -37,11 +34,6 @@ export const config = {
   // Dev = Vite embutido com hot-reload. Caso contrário, serve o build estático.
   isDev,
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:4000",
-  webhookUrl: required(
-    "WEBHOOK_URL",
-    "https://n8n-gw8k8gks84k0cwcgwo4ws884.app5.w8hub.com.br/webhook/fbe013a0-9e52-43e3-9671-5d52f63f60da",
-  ),
-  webhookTimeoutMs: Number(process.env.WEBHOOK_TIMEOUT_MS ?? 15000),
   // Conexão Postgres usada pelas migrations.
   databaseUrl: process.env.DATABASE_URL ?? "",
   // Raiz do projeto (onde ficam index.html e vite.config.ts) e a pasta do
@@ -87,6 +79,55 @@ export const config = {
       timeCost: num("ARGON_TIME_COST", 2),
       parallelism: num("ARGON_PARALLELISM", 1),
     },
+  },
+
+  // ---- Pipeline de cotação (migração do fluxo n8n para código) ----
+  // Todas as chaves ficam aqui, lidas do .env (NUNCA hardcoded como no n8n).
+  // Leitura "lazy" (sem throw no boot): a ausência de uma chave só quebra
+  // quando o provider correspondente é usado dentro do job, que então marca a
+  // cotação como 'failed' com mensagem clara — sem derrubar o servidor.
+  cotacao: {
+    // OpenAI: classificação de grupo de insumos + cidades vizinhas.
+    openaiApiKey: str("OPENAI_API_KEY"),
+    openaiModel: str("OPENAI_MODEL", "gpt-5.5"),
+
+    // Google Maps: Places (Text Search + Details) e Geocoding.
+    googleMapsApiKey: str("GOOGLE_MAPS_API_KEY"),
+
+    // Perplexity (sonar-pro): fonte alternativa de fornecedores.
+    perplexityApiKey: str("PERPLEXITY_API_KEY"),
+    perplexityModel: str("PERPLEXITY_MODEL", "sonar-pro"),
+
+    // Evolution API (WhatsApp). A MESMA instância serve à verificação de
+    // número (POST /chat/whatsappNumbers/{instance}) e ao envio de mensagem
+    // (POST /message/sendText/{instance}).
+    evolution: {
+      apiUrl: str("EVOLUTION_API_URL"),
+      apiKey: str("EVOLUTION_API_KEY"),
+      instance: str("EVOLUTION_INSTANCE", "Starbridge"),
+    },
+
+    // SMTP (nodemailer) para os e-mails ao comprador (sucesso / sem fornecedores).
+    smtp: {
+      host: str("SMTP_HOST"),
+      port: num("SMTP_PORT", 587),
+      secure: bool("SMTP_SECURE", false), // true => porta 465 (TLS implícito)
+      user: str("SMTP_USER"),
+      pass: str("SMTP_PASS"),
+      from: str("SMTP_FROM"),
+      fromName: str("SMTP_FROM_NAME", "Agente Comprador"),
+    },
+
+    // Parâmetros do pipeline, tunáveis sem tocar no código.
+    suppliersTarget: num("SUPPLIERS_TARGET", 8), // alvo de fornecedores
+    searchMaxRadiusKm: num("SEARCH_MAX_RADIUS_KM", 100), // raio máx. p/ vizinhas
+    dispatchDelayMs: num("DISPATCH_DELAY_MS", 1500), // espaço entre envios WhatsApp
+    httpTimeoutMs: num("PIPELINE_HTTP_TIMEOUT_MS", 30000), // timeout por chamada externa
+
+    // MODO DE TESTE CONTROLADO: se preenchido, TODO envio de WhatsApp vai para
+    // este número (em vez do fornecedor real). Os fornecedores reais continuam
+    // gravados no banco. DEIXE VAZIO EM PRODUÇÃO.
+    dispatchTestRecipient: str("DISPATCH_TEST_RECIPIENT"),
   },
 } as const;
 

@@ -13,6 +13,12 @@ export interface CotacaoPayload {
   cidade: string;
   estado: string;
   produtos: ProdutoPayload[];
+  /** Máximo de fornecedores a contatar (1–10). */
+  maxFornecedores: number;
+  /** "raio" usa raioKm; "brasil" busca no país inteiro. */
+  abrangencia: "raio" | "brasil";
+  /** Raio máximo em km (enviado quando abrangencia === "raio"). */
+  raioKm?: number;
 }
 
 /** Um material solicitado dentro de uma cotação (quote_products). */

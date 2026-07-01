@@ -179,6 +179,23 @@ CREATE_USER_PASSWORD='SuaSenhaForte123' npm run create-user -- \
 > `--password`, ou ser **gerada** automaticamente (exibida uma vez) se omitida.
 > Roles disponíveis na tabela: `admin`, `manager`, `user`, `viewer`.
 
+**Requisitos de senha** (validados no cadastro e na criação via CLI):
+
+| Requisito                | Regra                                              |
+| ------------------------ | -------------------------------------------------- |
+| Comprimento              | **mínimo 8** e **máximo 128** caracteres           |
+| Letra minúscula          | ao menos **1** (`a`–`z`)                           |
+| Letra maiúscula          | ao menos **1** (`A`–`Z`)                           |
+| Número                   | ao menos **1** (`0`–`9`)                           |
+
+- Caractere especial **não é obrigatório** (é permitido).
+- O teto de 128 caracteres evita abuso do hashing (DoS no argon2 com inputs gigantes).
+- Exemplos válidos: `Nel01102003`, `Senha123`, `Starbridge2026`.
+  Inválidos: `senha123` (sem maiúscula), `SENHA123` (sem minúscula),
+  `Senha` (curta e sem número).
+- A política fica em [`src/server/auth/schema.ts`](src/server/auth/schema.ts)
+  (`passwordSchema`) — ajuste lá se precisar mudar as regras.
+
 **Endpoints (`/api/auth`):**
 
 | Rota            | Método | Descrição                                              |

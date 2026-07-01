@@ -21,6 +21,8 @@ interface FormErrors {
   email?: string;
   cidade?: string;
   estado?: string;
+  maxFornecedores?: string;
+  raioKm?: string;
   produtos?: ProdutoErrors[];
 }
 
@@ -42,6 +44,9 @@ export function QuoteForm() {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
   const [produtos, setProdutos] = useState<ProdutoForm[]>([novoProduto()]);
+  const [maxFornecedores, setMaxFornecedores] = useState("8");
+  const [abrangencia, setAbrangencia] = useState<"raio" | "brasil">("raio");
+  const [raioKm, setRaioKm] = useState("100");
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<Status>("idle");
   const [feedback, setFeedback] = useState("");
@@ -73,6 +78,18 @@ export function QuoteForm() {
     else if (!EMAIL_RE.test(email.trim())) next.email = "E-mail inválido";
     if (!cidade.trim()) next.cidade = "Informe a cidade";
     if (!estado) next.estado = "Selecione o estado";
+
+    const qtdForn = Number(maxFornecedores);
+    if (!maxFornecedores.trim()) next.maxFornecedores = "Informe a quantidade";
+    else if (!Number.isInteger(qtdForn) || qtdForn < 1 || qtdForn > 10)
+      next.maxFornecedores = "Entre 1 e 10";
+
+    if (abrangencia === "raio") {
+      const r = Number(raioKm);
+      if (!raioKm.trim()) next.raioKm = "Informe o raio";
+      else if (!Number.isFinite(r) || r <= 0)
+        next.raioKm = "Raio deve ser maior que zero";
+    }
 
     const produtoErrors = produtos.map((p) => {
       const e: ProdutoErrors = {};
@@ -120,6 +137,9 @@ export function QuoteForm() {
           ...(marca ? { marca } : {}),
         };
       }),
+      maxFornecedores: Number(maxFornecedores),
+      abrangencia,
+      ...(abrangencia === "raio" ? { raioKm: Number(raioKm) } : {}),
     };
 
     setStatus("submitting");
@@ -133,6 +153,9 @@ export function QuoteForm() {
       setCidade("");
       setEstado("");
       setProdutos([novoProduto()]);
+      setMaxFornecedores("8");
+      setAbrangencia("raio");
+      setRaioKm("100");
       setErrors({});
     } catch (err) {
       setStatus("error");
@@ -340,6 +363,72 @@ export function QuoteForm() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* ---- Preferências da busca ---- */}
+      <section className="section">
+        <div className="section__head">
+          <h2 className="section__title">Preferências da busca</h2>
+        </div>
+
+        <div className="grid-2">
+          <div className="field">
+            <label htmlFor="maxFornecedores">
+              Máximo de fornecedores a contatar (1–10)
+            </label>
+            <input
+              id="maxFornecedores"
+              className="input"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              inputMode="numeric"
+              value={maxFornecedores}
+              onChange={(e) => setMaxFornecedores(e.target.value)}
+              aria-invalid={!!errors.maxFornecedores}
+            />
+            {errors.maxFornecedores && (
+              <span className="field-error">{errors.maxFornecedores}</span>
+            )}
+          </div>
+
+          <div className="field">
+            <label htmlFor="abrangencia">Abrangência da busca</label>
+            <select
+              id="abrangencia"
+              className="select"
+              value={abrangencia}
+              onChange={(e) =>
+                setAbrangencia(e.target.value as "raio" | "brasil")
+              }
+            >
+              <option value="raio">Raio (km)</option>
+              <option value="brasil">Todo o Brasil</option>
+            </select>
+          </div>
+
+          {abrangencia === "raio" && (
+            <div className="field">
+              <label htmlFor="raioKm">Raio máximo (km)</label>
+              <input
+                id="raioKm"
+                className="input"
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                value={raioKm}
+                onChange={(e) => setRaioKm(e.target.value)}
+                placeholder="100"
+                aria-invalid={!!errors.raioKm}
+              />
+              {errors.raioKm && (
+                <span className="field-error">{errors.raioKm}</span>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

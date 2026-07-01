@@ -19,27 +19,15 @@ export const cotacaoSchema = z.object({
   cidade: z.string().trim().min(1, "Cidade é obrigatória"),
   estado: z.string().trim().min(1, "Estado é obrigatório"),
   produtos: z.array(produtoSchema).min(1, "Inclua pelo menos um produto"),
+
+  // Preferências da busca (opcionais; caem nos defaults do .env se ausentes).
+  // Máximo de fornecedores a contatar (regra de negócio: teto de 10).
+  maxFornecedores: z.number().int().min(1).max(10).optional(),
+  // Abrangência: "raio" usa raioKm; "brasil" busca no país inteiro (sem teto de km).
+  abrangencia: z.enum(["raio", "brasil"]).optional(),
+  // Raio máximo em km (usado quando abrangencia === "raio").
+  raioKm: z.number().int().positive().max(1000).optional(),
 });
 
 export type Cotacao = z.infer<typeof cotacaoSchema>;
 export type Produto = z.infer<typeof produtoSchema>;
-
-/**
- * Normaliza a cotação para o formato enviado ao webhook:
- * remove o campo `marca` quando vier vazio (mantém o payload limpo).
- */
-export function toWebhookPayload(cotacao: Cotacao): Cotacao {
-  return {
-    ...cotacao,
-    produtos: cotacao.produtos.map((p) => {
-      const marca = p.marca?.trim();
-      const produto: Produto = {
-        material: p.material,
-        quantidade: p.quantidade,
-        unidade: p.unidade,
-      };
-      if (marca) produto.marca = marca;
-      return produto;
-    }),
-  };
-}
