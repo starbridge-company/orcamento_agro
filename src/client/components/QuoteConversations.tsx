@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link, useMatch, useNavigate, useParams } from "react-router-dom";
@@ -55,7 +56,7 @@ function renderValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Exibe o metadata (JSONB) como uma lista estruturada de chave/valor. */
+/** Exibe o metadata (JSONB) como lista chave/valor, recortada + pop-up. */
 function MetadataCell({ metadata }: { metadata: Conversa["metadata"] }) {
   const entries = useMemo(
     () =>
@@ -67,7 +68,7 @@ function MetadataCell({ metadata }: { metadata: Conversa["metadata"] }) {
 
   if (entries.length === 0) return <span className="cell-empty">—</span>;
 
-  return (
+  const lista = (
     <dl className="meta-list">
       {entries.map(([key, value]) => (
         <div className="meta-list__row" key={key}>
@@ -76,6 +77,16 @@ function MetadataCell({ metadata }: { metadata: Conversa["metadata"] }) {
         </div>
       ))}
     </dl>
+  );
+
+  return (
+    <HoverPopover
+      title="Observações / especificações"
+      triggerClassName="cell-clamp"
+      popup={lista}
+    >
+      {lista}
+    </HoverPopover>
   );
 }
 
@@ -104,7 +115,7 @@ function ProposalCell({ conversa }: { conversa: Conversa }) {
 
   if (preenchidos.length === 0) return <span className="cell-empty">—</span>;
 
-  return (
+  const lista = (
     <dl className="meta-list">
       {preenchidos.map(([label, value]) => (
         <div className="meta-list__row" key={label}>
@@ -113,6 +124,12 @@ function ProposalCell({ conversa }: { conversa: Conversa }) {
         </div>
       ))}
     </dl>
+  );
+
+  return (
+    <HoverPopover title="Proposta" triggerClassName="cell-clamp" popup={lista}>
+      {lista}
+    </HoverPopover>
   );
 }
 
@@ -123,14 +140,33 @@ interface PopoverCoords {
 }
 
 /**
- * Prévia da mensagem (2 linhas) que, ao passar o mouse / receber foco, abre um
- * pop-up personalizado com o corpo inteiro. O pop-up é renderizado via portal
- * em `position: fixed` para não ser cortado pelo overflow da tabela.
+ * Wrapper genérico: mostra `children` recortado (via `triggerClassName`, que
+ * limita a altura) e, QUANDO o conteúdo transborda, abre um pop-up (portal, em
+ * `position: fixed`, para não ser cortado pelo overflow da tabela) com `popup`
+ * ao passar o mouse / receber foco. Se o conteúdo couber, não vira botão nem
+ * abre pop-up.
  */
-function MessagePreview({ text }: { text: string }) {
-  const ref = useRef<HTMLButtonElement>(null);
+function HoverPopover({
+  title,
+  triggerClassName,
+  children,
+  popup,
+}: {
+  title: string;
+  triggerClassName: string;
+  children: ReactNode;
+  popup: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
   const [coords, setCoords] = useState<PopoverCoords | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  // Detecta se o conteúdo excede a altura recortada (para decidir o pop-up).
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  });
 
   const cancelClose = useCallback(() => {
     if (closeTimer.current !== null) {
@@ -142,7 +178,7 @@ function MessagePreview({ text }: { text: string }) {
   const open = useCallback(() => {
     cancelClose();
     const el = ref.current;
-    if (!el) return;
+    if (!el || el.scrollHeight <= el.clientHeight + 1) return; // não transborda
     const r = el.getBoundingClientRect();
     const POPUP_W = 380;
     const margin = 12;
@@ -161,8 +197,6 @@ function MessagePreview({ text }: { text: string }) {
     setCoords({ top, left, placement });
   }, [cancelClose]);
 
-  // Fecha com um pequeno atraso, dando tempo de mover o mouse do gatilho
-  // para o pop-up (que cancela o fechamento ao receber o mouse).
   const scheduleClose = useCallback(() => {
     cancelClose();
     closeTimer.current = window.setTimeout(() => setCoords(null), 140);
@@ -172,18 +206,19 @@ function MessagePreview({ text }: { text: string }) {
 
   return (
     <>
-      <button
+      <div
         ref={ref}
-        type="button"
-        className="msg-preview"
+        className={`${triggerClassName}${overflowing ? " is-clamped" : ""}`}
         onMouseEnter={open}
         onMouseLeave={scheduleClose}
         onFocus={open}
         onBlur={scheduleClose}
-        aria-label="Ver mensagem inicial completa"
+        tabIndex={overflowing ? 0 : undefined}
+        role={overflowing ? "button" : undefined}
+        aria-label={overflowing ? `Ver ${title} completo` : undefined}
       >
-        {text}
-      </button>
+        {children}
+      </div>
       {coords &&
         createPortal(
           <div
@@ -198,12 +233,21 @@ function MessagePreview({ text }: { text: string }) {
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
-            <span className="msg-popover__head">Mensagem inicial</span>
-            <p className="msg-popover__body">{text}</p>
+            <span className="msg-popover__head">{title}</span>
+            <div className="msg-popover__body">{popup}</div>
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+/** Prévia da mensagem inicial (recorte de 2 linhas + pop-up com o texto inteiro). */
+function MessagePreview({ text }: { text: string }) {
+  return (
+    <HoverPopover title="Mensagem inicial" triggerClassName="msg-preview" popup={text}>
+      {text}
+    </HoverPopover>
   );
 }
 

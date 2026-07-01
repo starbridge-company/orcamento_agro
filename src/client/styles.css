@@ -781,6 +781,30 @@ select {
   outline: none;
 }
 
+/* Recorte de colunas ricas (Proposta / Observações): altura máxima + fade e
+   pop-up SÓ quando o conteúdo transborda. */
+.cell-clamp {
+  display: block;
+  max-height: 5em;
+  overflow: hidden;
+  text-align: left;
+}
+
+.cell-clamp.is-clamped {
+  cursor: pointer;
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+}
+
+.cell-clamp.is-clamped:hover,
+.cell-clamp.is-clamped:focus-visible {
+  outline: none;
+}
+
+.cell-clamp.is-clamped:hover .meta-list__value {
+  color: hsl(var(--accent));
+}
+
 .msg-popover {
   position: fixed;
   z-index: 100;

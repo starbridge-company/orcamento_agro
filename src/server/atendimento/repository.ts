@@ -47,12 +47,22 @@ export async function findConversationByPhone(
     supplier_name: string;
     phone: string | null;
   }>(
+    // Prefere a conversa ATIVA (IA ainda no comando) mais recente; se não houver
+    // nenhuma ativa, devolve a mais recente (a mensagem é gravada, mas o gate
+    // mantém a IA calada). Assim, um pedido novo já resolvido não "engole" as
+    // respostas de um pedido anterior que ainda está em aberto.
     `SELECT qc.id, qc.quote_id, qc.supplier_id, qc.responsible, qc.status,
             s.name AS supplier_name, s.phone
        FROM agro.quote_conversations qc
        JOIN agro.suppliers s ON s.id = qc.supplier_id
       WHERE qc.deleted_at IS NULL AND s.phone = ANY($1)
-      ORDER BY qc.created_at DESC, qc.id DESC
+      ORDER BY
+        (qc.responsible = 'Agente'
+          AND qc.status NOT IN (
+            'proposta recebida', 'fornecedor sem o produto',
+            'aguardando humano', 'resolvido'
+          )) DESC,
+        qc.created_at DESC, qc.id DESC
       LIMIT 1`,
     [phoneVariants(phone)],
   );
