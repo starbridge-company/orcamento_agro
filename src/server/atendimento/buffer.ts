@@ -39,6 +39,10 @@ export async function enqueue(
     ...msg,
     windowSeconds: config.cotacao.bufferWindowSeconds,
   });
+  const t = new Date().toLocaleTimeString("pt-BR");
+  console.log(
+    `[buffer] ${t} bolha enfileirada (conversa ${conversationId}); aguardando ${config.cotacao.bufferWindowSeconds}s de silêncio`,
+  );
   scheduleProcessing(conversationId);
 }
 
@@ -69,8 +73,9 @@ async function processBuffer(conversationId: string): Promise<void> {
   const rows = await claimBufferedMessages(conversationId);
   if (rows.length === 0) return;
 
+  const t = new Date().toLocaleTimeString("pt-BR");
   console.log(
-    `[buffer] conversa ${conversationId}: ${rows.length} bolha(s) — acionando agente`,
+    `[buffer] ${t} conversa ${conversationId}: JUNTANDO ${rows.length} bolha(s) numa resposta — acionando agente`,
   );
 
   // O agente lê o histórico da conversa (que já inclui estas bolhas); o buffer
