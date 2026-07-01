@@ -16,6 +16,7 @@ import { generateReply } from "./agent";
 import {
   applyAgentOutcome,
   getConversationForAgent,
+  getLastAgentMessage,
   getRecentMessages,
   insertAgentMessage,
   saveProposal,
@@ -23,6 +24,32 @@ import {
 import { agentShouldHandle } from "./gate";
 
 const HISTORY_WINDOW = 15;
+
+// Acima deste Jaccard de palavras, a nova resposta é tratada como duplicata da
+// anterior e NÃO é reenviada. Calibrado com conversas reais: duplicatas ficaram
+// em 0.68-0.88 e a transição legítima mais próxima em 0.46 — 0.6 separa com folga.
+const DUPLICATE_SIMILARITY = 0.6;
+
+/** Normaliza para comparação: minúsculas, sem acento, sem pontuação, 1 espaço. */
+function normalizeForCompare(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // remove diacríticos (marcas combinantes)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Similaridade de Jaccard entre os conjuntos de palavras de a e b (0..1). */
+function wordSimilarity(a: string, b: string): number {
+  const wa = new Set(normalizeForCompare(a).split(" ").filter(Boolean));
+  const wb = new Set(normalizeForCompare(b).split(" ").filter(Boolean));
+  if (wa.size === 0 || wb.size === 0) return wa.size === wb.size ? 1 : 0;
+  let inter = 0;
+  for (const w of wa) if (wb.has(w)) inter++;
+  return inter / (wa.size + wb.size - inter);
+}
 
 export async function runAgentForConversation(
   conversationId: string,
@@ -51,18 +78,34 @@ export async function runAgentForConversation(
   }
 
   if (message && message.trim()) {
-    const to = normalizePhone(config.cotacao.dispatchTestRecipient) || conv.phone || "";
-    if (to) {
-      const { waMessageId } = await sendText(to, message);
-      await insertAgentMessage({
-        conversationId,
-        content: message,
-        waMessageId,
-        sentAt: new Date(),
-      });
-      console.log(`[agent] resposta enviada p/ ${to} (conversa ${conversationId})`);
+    // Dedupe: se a resposta é praticamente idêntica à última que o agente já
+    // mandou, NÃO reenvia (evita as duplicatas em rajada). Status/proposta
+    // seguem sendo aplicados normalmente abaixo.
+    const lastAgentMessage = await getLastAgentMessage(conversationId);
+    const similarity = lastAgentMessage
+      ? wordSimilarity(lastAgentMessage, message)
+      : 0;
+
+    if (similarity >= DUPLICATE_SIMILARITY) {
+      console.warn(
+        `[agent] resposta ${similarity.toFixed(2)} similar à anterior — ` +
+          `suprimindo envio duplicado (conversa ${conversationId})`,
+      );
     } else {
-      console.warn(`[agent] sem telefone p/ responder (conversa ${conversationId})`);
+      const to =
+        normalizePhone(config.cotacao.dispatchTestRecipient) || conv.phone || "";
+      if (to) {
+        const { waMessageId } = await sendText(to, message);
+        await insertAgentMessage({
+          conversationId,
+          content: message,
+          waMessageId,
+          sentAt: new Date(),
+        });
+        console.log(`[agent] resposta enviada p/ ${to} (conversa ${conversationId})`);
+      } else {
+        console.warn(`[agent] sem telefone p/ responder (conversa ${conversationId})`);
+      }
     }
   } else {
     console.log(`[agent] sem mensagem a enviar (tag=${tag})`);

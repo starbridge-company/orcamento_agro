@@ -264,6 +264,25 @@ export async function saveProposal(
   );
 }
 
+/**
+ * Última mensagem que o AGENTE enviou nesta conversa (author='system'), se
+ * houver. Usada pelo `agentRunner` para não reenviar uma resposta praticamente
+ * idêntica à anterior (dedupe de mensagem duplicada).
+ */
+export async function getLastAgentMessage(
+  conversationId: string,
+): Promise<string | null> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ content: string | null }>(
+    `SELECT content FROM agro.quote_conversation_messages
+      WHERE conversation_id = $1 AND author = 'system' AND deleted_at IS NULL
+      ORDER BY COALESCE(sent_at, created_at) DESC, id DESC
+      LIMIT 1`,
+    [conversationId],
+  );
+  return rows[0]?.content ?? null;
+}
+
 /** Grava a resposta do agente (author='system'). */
 export async function insertAgentMessage(m: {
   conversationId: string;
