@@ -204,9 +204,10 @@ export async function applyAgentOutcome(
 
 /**
  * Persiste a proposta extraída pelo agente nas colunas de `quote_conversations`
- * (prazo/pagamento/frete/impostos/validade) + itens/total/observações no
- * `metadata` (JSONB). Usa COALESCE para não apagar dados já coletados e faz
- * MERGE do metadata (não perde observações anteriores).
+ * (prazo/pagamento/frete/validade) + itens/total/observações no `metadata`
+ * (JSONB). Usa COALESCE para não apagar dados já coletados e faz MERGE do
+ * metadata (não perde observações anteriores). A coluna `taxes` (impostos)
+ * permanece no schema por compatibilidade histórica, mas não é mais coletada.
  */
 export async function saveProposal(
   conversationId: string,
@@ -245,11 +246,10 @@ export async function saveProposal(
         delivery_time     = COALESCE($2, delivery_time),
         payment_method    = COALESCE($3, payment_method),
         shipping          = COALESCE($4, shipping),
-        taxes             = COALESCE($5, taxes),
-        proposal_validity = COALESCE($6, proposal_validity),
+        proposal_validity = COALESCE($5, proposal_validity),
         metadata          = CASE
-                              WHEN $7::jsonb IS NULL THEN metadata
-                              ELSE COALESCE(metadata, '{}'::jsonb) || $7::jsonb
+                              WHEN $6::jsonb IS NULL THEN metadata
+                              ELSE COALESCE(metadata, '{}'::jsonb) || $6::jsonb
                             END,
         updated_at        = now()
       WHERE id = $1`,
@@ -258,7 +258,6 @@ export async function saveProposal(
       clean(p.prazo),
       clean(p.pagamento),
       clean(p.frete),
-      clean(p.impostos),
       clean(p.validade),
       metaJson,
     ],

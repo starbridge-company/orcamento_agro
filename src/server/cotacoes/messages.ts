@@ -35,7 +35,6 @@ export function buildSupplierMessage(input: SupplierMessageInput): string {
   t += "- Preço unitário e total para cada item;\n";
   t += "- Prazo de entrega previsto;\n";
   t += "- Condições e formas de pagamento disponíveis;\n";
-  t += "- Indicação se os preços incluem impostos;\n";
   t += "- Indicação se os preços incluem frete;\n";
   t += "- Validade da proposta comercial.\n\n";
   t +=

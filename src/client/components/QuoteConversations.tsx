@@ -99,15 +99,14 @@ function Cell({ value }: { value: string | number | null }) {
 
 /**
  * Coluna "Proposta": agrupa os termos comerciais (prazo, pagamento, frete,
- * impostos, volume, validade) numa lista rótulo→valor, exibindo só os campos
- * preenchidos. Reduz a tabela de ~14 para ~9 colunas.
+ * volume, validade) numa lista rótulo→valor, exibindo só os campos preenchidos.
+ * Reduz a tabela de ~14 para ~9 colunas.
  */
 function ProposalCell({ conversa }: { conversa: Conversa }) {
   const itens: Array<[string, string | null]> = [
     ["Prazo", conversa.delivery_time],
     ["Pagamento", conversa.payment_method],
     ["Frete", conversa.shipping],
-    ["Impostos", conversa.taxes],
     ["Volume", conversa.volume],
     ["Validade", conversa.proposal_validity],
   ];

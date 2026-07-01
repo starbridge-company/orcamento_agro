@@ -91,7 +91,7 @@ export async function describeImage(
   return (data.choices?.[0]?.message?.content ?? "").trim();
 }
 
-const PDF_PROMPT = `Extraia deste PDF de orçamento, em texto corrido e objetivo (pt-BR): os itens (descrição EXATA, quantidade, unidade, preço unitário e total), os valores totais e as condições comerciais (forma de pagamento, prazo de entrega, validade, frete, impostos). Se não for um orçamento, diga o que é.`;
+const PDF_PROMPT = `Extraia deste PDF de orçamento, em texto corrido e objetivo (pt-BR): os itens (descrição EXATA, quantidade, unidade, preço unitário e total), os valores totais e as condições comerciais (forma de pagamento, prazo de entrega, validade, frete). Se não for um orçamento, diga o que é.`;
 
 /** Junta os textos de saída da Responses API. */
 function extractResponsesText(data: unknown): string {
