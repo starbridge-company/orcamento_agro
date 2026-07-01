@@ -11,8 +11,11 @@
  */
 import { Router, type Request, type Response } from "express";
 import { cotacaoSchema } from "../schema";
+import { config } from "../config";
 import { getPool } from "../db/pool";
 import { submitQuote } from "./service";
+import { sendText } from "./providers/evolution";
+import { normalizePhone } from "./pipeline/phone";
 
 /** Domínio de origem da requisição (respeita proxy reverso), p/ link do painel. */
 function resolveDominio(req: Request): string {
@@ -230,6 +233,78 @@ export function buildCotacoesRouter(): Router {
       });
     }
   });
+
+  /**
+   * Envia uma mensagem digitada por um humano ao fornecedor (via Evolution) e
+   * a grava no histórico (author='buyer'). Marca a conversa como responsável
+   * 'Humano' — o humano assumiu, então a IA para de responder.
+   * Em MODO TESTE (DISPATCH_TEST_RECIPIENT) a mensagem vai para o número de teste.
+   */
+  router.post(
+    "/conversas/:id/mensagens",
+    async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const content =
+        typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+      if (!Number.isInteger(id)) {
+        return res.status(400).json({ message: "ID inválido." });
+      }
+      if (!content) {
+        return res.status(400).json({ message: "Mensagem vazia." });
+      }
+      if (content.length > 4096) {
+        return res.status(400).json({ message: "Mensagem muito longa." });
+      }
+
+      try {
+        const pool = getPool();
+        const { rows } = await pool.query<{ phone: string | null }>(
+          `SELECT s.phone
+             FROM agro.quote_conversations qc
+             JOIN agro.suppliers s ON s.id = qc.supplier_id
+            WHERE qc.id = $1 AND qc.deleted_at IS NULL`,
+          [id],
+        );
+        if (rows.length === 0) {
+          return res.status(404).json({ message: "Conversa não encontrada." });
+        }
+        const phone = rows[0].phone;
+        if (!phone) {
+          return res
+            .status(400)
+            .json({ message: "Fornecedor sem telefone cadastrado." });
+        }
+
+        const to = normalizePhone(config.cotacao.dispatchTestRecipient) || phone;
+        const { waMessageId } = await sendText(to, content);
+
+        const inserted = await pool.query(
+          `INSERT INTO agro.quote_conversation_messages
+             (conversation_id, author, content, message_type, wa_message_id, sent_at)
+           VALUES ($1, 'buyer', $2, 'text', $3, now())
+           RETURNING id, conversation_id, author, content, message_type,
+                     wa_message_id, media_url, sent_at, created_at`,
+          [id, content, waMessageId],
+        );
+
+        // Humano assumiu: a IA para de responder nesta conversa.
+        await pool.query(
+          `UPDATE agro.quote_conversations
+              SET responsible = 'Humano', updated_at = now()
+            WHERE id = $1`,
+          [id],
+        );
+
+        return res.status(201).json({ mensagem: inserted.rows[0] });
+      } catch (error) {
+        console.error("Falha ao enviar mensagem manual:", error);
+        return res.status(502).json({
+          message: "Não foi possível enviar a mensagem ao fornecedor.",
+        });
+      }
+    },
+  );
 
   /**
    * Detalhe de UMA cotação (quote) com seus materiais. Registrado depois das

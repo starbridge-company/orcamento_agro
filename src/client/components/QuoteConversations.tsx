@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { Link, useMatch, useNavigate, useParams } from "react-router-dom";
 import {
   atualizarResponsavel,
+  enviarMensagem,
   listarConversas,
   listarMensagens,
   obterCotacao,
@@ -392,9 +393,124 @@ function MessageBody({ m }: { m: Mensagem }) {
   return <span className="chat-text chat-text--muted">[mensagem sem conteúdo]</span>;
 }
 
+const QUICK_EMOJIS = [
+  "👍", "🙏", "✅", "👌", "🤝", "😊", "👋", "🔥", "⭐", "❤️",
+  "📦", "🚚", "💰", "📄", "📅", "⏰", "📞", "✔️", "❌", "😉",
+];
+
+/**
+ * Barra de composição: digitar, inserir emojis e enviar a mensagem ao
+ * fornecedor. Enter envia; Shift+Enter quebra linha. Ao enviar, o humano
+ * assume a conversa (a IA para de responder).
+ */
+function Composer({
+  conversationId,
+  onSent,
+}: {
+  conversationId: number;
+  onSent: (m: Mensagem) => void;
+}) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [showEmojis, setShowEmojis] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    if (!el) {
+      setText((t) => t + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const enviar = async () => {
+    const content = text.trim();
+    if (!content || sending) return;
+    setSending(true);
+    setErr("");
+    try {
+      const msg = await enviarMensagem(conversationId, content);
+      onSent(msg);
+      setText("");
+      setShowEmojis(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Não foi possível enviar.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void enviar();
+    }
+  };
+
+  return (
+    <div className="chat-composer">
+      {err && <div className="chat-composer__err">{err}</div>}
+      {showEmojis && (
+        <div className="chat-emojis">
+          {QUICK_EMOJIS.map((emoji) => (
+            <button
+              type="button"
+              key={emoji}
+              className="chat-emoji"
+              onClick={() => insertEmoji(emoji)}
+              aria-label={`Inserir ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="chat-composer__row">
+        <button
+          type="button"
+          className="chat-emoji-toggle"
+          onClick={() => setShowEmojis((s) => !s)}
+          aria-label="Emojis"
+          aria-expanded={showEmojis}
+        >
+          😊
+        </button>
+        <textarea
+          ref={inputRef}
+          className="chat-input"
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Escreva uma mensagem…"
+          disabled={sending}
+        />
+        <button
+          type="button"
+          className="btn primary chat-send"
+          onClick={() => void enviar()}
+          disabled={sending || !text.trim()}
+        >
+          {sending ? <span className="spinner" /> : "Enviar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Chat (estilo WhatsApp/Telegram) com todas as mensagens de uma conversa.
- * Drawer lateral em portal; somente leitura para acompanhar o agente.
+ * Drawer lateral em portal; permite acompanhar o agente e responder pelo painel.
  */
 function ConversationChat({
   conversa,
@@ -475,6 +591,16 @@ function ConversationChat({
           </div>
           <button
             type="button"
+            className="chat-refresh"
+            onClick={carregar}
+            disabled={status === "loading"}
+            aria-label="Atualizar mensagens"
+            title="Atualizar"
+          >
+            ↻
+          </button>
+          <button
+            type="button"
             className="chat-close"
             onClick={onClose}
             aria-label="Fechar chat"
@@ -527,20 +653,10 @@ function ConversationChat({
             })}
         </div>
 
-        <footer className="chat-footer">
-          <span className="chat-footer__note">
-            Somente leitura · acompanhe a conversa do agente
-          </span>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={carregar}
-            disabled={status === "loading"}
-          >
-            {status === "loading" && <span className="spinner spinner--dark" />}
-            Atualizar
-          </button>
-        </footer>
+        <Composer
+          conversationId={conversa.id}
+          onSent={(m) => setMensagens((prev) => [...prev, m])}
+        />
       </div>
     </div>,
     document.body,

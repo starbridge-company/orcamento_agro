@@ -162,6 +162,34 @@ export async function listarMensagens(
   return data.mensagens ?? [];
 }
 
+/** Envia uma mensagem digitada (humano) ao fornecedor e a devolve criada. */
+export async function enviarMensagem(
+  conversationId: number,
+  content: string,
+): Promise<Mensagem> {
+  const response = await apiFetch(
+    `/api/cotacoes/conversas/${conversationId}/mensagens`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  );
+
+  const data = (await response.json().catch(() => ({}))) as {
+    mensagem?: Mensagem;
+    message?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(data.message ?? "Não foi possível enviar a mensagem.");
+  }
+  if (!data.mensagem) {
+    throw new Error("Resposta inválida do servidor ao enviar a mensagem.");
+  }
+  return data.mensagem;
+}
+
 /** Atualiza o responsável (Agente | Humano) de uma conversa. */
 export async function atualizarResponsavel(
   id: number,
