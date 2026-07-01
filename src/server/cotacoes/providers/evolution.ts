@@ -75,3 +75,33 @@ export async function sendText(
   );
   return { waMessageId: data.key?.id ?? null };
 }
+
+interface MediaBase64Response {
+  base64?: string;
+  mimetype?: string;
+}
+
+/**
+ * Baixa a mídia de uma mensagem recebida em base64
+ * (POST /chat/getBase64FromMediaMessage/{instance}). `messageKey` é o
+ * `data.key` do evento messages.upsert.
+ */
+export async function getMediaBase64(
+  messageKey: unknown,
+): Promise<{ base64: string; mimetype: string }> {
+  const { apiUrl, apiKey, instance } = creds();
+  const data = await httpJson<MediaBase64Response>(
+    `${apiUrl}/chat/getBase64FromMediaMessage/${instance}`,
+    {
+      method: "POST",
+      headers: { apikey: apiKey },
+      body: { message: { key: messageKey }, convertToMp4: false },
+      retries: 2,
+    },
+  );
+  if (!data.base64) throw new Error("Evolution não retornou base64 da mídia.");
+  return {
+    base64: data.base64,
+    mimetype: data.mimetype ?? "application/octet-stream",
+  };
+}

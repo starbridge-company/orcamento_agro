@@ -128,6 +128,17 @@ export const config = {
     // este número (em vez do fornecedor real). Os fornecedores reais continuam
     // gravados no banco. DEIXE VAZIO EM PRODUÇÃO.
     dispatchTestRecipient: str("DISPATCH_TEST_RECIPIENT"),
+
+    // ---- Agente conversacional INBOUND (respostas dos fornecedores) ----
+    // Segredo que valida o webhook da Evolution (query ?secret= ou header
+    // x-webhook-secret). Sem ele configurado, o webhook aceita qualquer origem
+    // (ok em dev; defina em produção).
+    evolutionWebhookSecret: str("EVOLUTION_WEBHOOK_SECRET"),
+    // Janela de agregação (debounce) das mensagens em rajada.
+    bufferWindowSeconds: num("BUFFER_WINDOW_SECONDS", 30),
+    // Modelos de mídia (transcrição de áudio / visão de imagem).
+    transcriptionModel: str("OPENAI_TRANSCRIPTION_MODEL", "whisper-1"),
+    visionModel: str("OPENAI_VISION_MODEL", "gpt-4o"),
   },
 } as const;
 

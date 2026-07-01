@@ -12,6 +12,8 @@ import { config, assertAuthConfig } from "./config";
 import { buildAuthRouter } from "./auth/routes";
 import { requireAuth } from "./auth/middleware";
 import { buildCotacoesRouter } from "./cotacoes/routes";
+import { buildWebhooksRouter } from "./atendimento/webhook";
+import { startBufferSweeper } from "./atendimento/buffer";
 
 async function bootstrap() {
   // Fail-closed: sem um JWT_SECRET forte, o servidor não sobe.
@@ -34,6 +36,16 @@ async function bootstrap() {
   );
 
   app.use(cors({ origin: config.corsOrigin, credentials: true }));
+
+  // Webhooks (públicos, server-to-server). Parser JSON próprio com limite maior
+  // (payloads de mensagem podem ser maiores) e ANTES do parser global de 100kb;
+  // a rota responde e não cai no restante do pipeline.
+  app.use(
+    "/api/webhooks",
+    express.json({ limit: "5mb" }),
+    buildWebhooksRouter(),
+  );
+
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
 
@@ -72,6 +84,10 @@ async function bootstrap() {
       "Frontend não compilado. Rode 'npm run build' ou use 'npm run dev'.",
     );
   }
+
+  // Sweeper do buffer de mensagens (agente inbound): recupera bolhas pendentes
+  // após restart e destrava locks presos.
+  startBufferSweeper();
 
   app.listen(config.port, () => {
     console.log(`\n➜  App em http://localhost:${config.port}\n`);

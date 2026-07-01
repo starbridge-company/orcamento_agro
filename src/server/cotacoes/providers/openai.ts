@@ -10,10 +10,15 @@ interface ChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
 }
 
-export async function chatComplete(params: {
-  system: string;
-  user: string;
-}): Promise<string> {
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** Chat completion multi-turn (usado pelo agente conversacional). */
+export async function chatCompleteMessages(
+  messages: ChatMessage[],
+): Promise<string> {
   const key = config.cotacao.openaiApiKey;
   if (!key) throw new Error("OPENAI_API_KEY não configurada.");
 
@@ -22,16 +27,21 @@ export async function chatComplete(params: {
     {
       method: "POST",
       headers: { Authorization: `Bearer ${key}` },
-      body: {
-        model: config.cotacao.openaiModel,
-        messages: [
-          { role: "system", content: params.system },
-          { role: "user", content: params.user },
-        ],
-      },
+      body: { model: config.cotacao.openaiModel, messages },
       retries: 2,
     },
   );
 
   return (data.choices?.[0]?.message?.content ?? "").trim();
+}
+
+/** Atalho single-turn (system + user). */
+export async function chatComplete(params: {
+  system: string;
+  user: string;
+}): Promise<string> {
+  return chatCompleteMessages([
+    { role: "system", content: params.system },
+    { role: "user", content: params.user },
+  ]);
 }
