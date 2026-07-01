@@ -248,8 +248,11 @@ export async function insertBuffer(row: {
 }
 
 /**
- * Reivindica (com lock) as bolhas já expiradas de uma conversa: marca
- * processing_at e as retorna. Garante que só um processador as pegue.
+ * Reivindica (com lock) as bolhas de uma conversa — SOMENTE se ela estiver
+ * quieta pela janela inteira, isto é, se NENHUMA bolha pendente ainda estiver
+ * "fresca" (expires_at no futuro). É o coração do debounce: só dispara o agente
+ * quando parou de chegar mensagem há `windowSeconds`. Atômico (sem corrida):
+ * marca processing_at e devolve TODAS as bolhas pendentes de uma vez.
  */
 export async function claimBufferedMessages(
   conversationId: string,
@@ -264,11 +267,16 @@ export async function claimBufferedMessages(
     sender_name: string | null;
     phone: string | null;
   }>(
-    `UPDATE agro.message_buffer
+    `UPDATE agro.message_buffer m
         SET processing_at = now()
-      WHERE conversation_id = $1
-        AND processing_at IS NULL
-        AND expires_at <= now()
+      WHERE m.conversation_id = $1
+        AND m.processing_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM agro.message_buffer b
+           WHERE b.conversation_id = $1
+             AND b.processing_at IS NULL
+             AND b.expires_at > now()   -- ainda dentro da janela (chegou há pouco)
+        )
       RETURNING id, conversation_id, wa_message_id, content, media_type, sender_name, phone`,
     [conversationId],
   );
@@ -303,12 +311,18 @@ export async function resetStaleLocks(olderThanSeconds: number): Promise<number>
   return rowCount ?? 0;
 }
 
-/** Conversas com bolhas já expiradas e ainda não travadas (para o sweeper). */
-export async function pendingExpiredConversations(): Promise<string[]> {
+/**
+ * Conversas QUIETAS (última bolha já passou da janela) e ainda não travadas —
+ * candidatas a processar. Usada pelo sweeper (recuperação pós-restart). O
+ * `MAX(expires_at) <= now()` garante "quieto desde a última mensagem".
+ */
+export async function quietConversations(): Promise<string[]> {
   const pool = getPool();
   const { rows } = await pool.query<{ conversation_id: string }>(
-    `SELECT DISTINCT conversation_id FROM agro.message_buffer
-      WHERE processing_at IS NULL AND expires_at <= now()`,
+    `SELECT conversation_id FROM agro.message_buffer
+      WHERE processing_at IS NULL
+      GROUP BY conversation_id
+      HAVING MAX(expires_at) <= now()`,
   );
   return rows.map((r) => r.conversation_id);
 }

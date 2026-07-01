@@ -11,13 +11,16 @@ import {
   claimBufferedMessages,
   deleteBuffered,
   insertBuffer,
-  pendingExpiredConversations,
+  quietConversations,
   resetStaleLocks,
 } from "./repository";
 import { runAgentForConversation } from "./agentRunner";
 
 const timers = new Map<string, NodeJS.Timeout>();
 const STALE_LOCK_SECONDS = 5 * 60;
+// Margem para o timer disparar DEPOIS da expiração da última bolha (evita a
+// reivindicação achar a última bolha ainda "fresca" por milissegundos).
+const TIMER_MARGIN_MS = 400;
 
 export interface EnqueueInput {
   waMessageId: string | null;
@@ -53,15 +56,18 @@ function scheduleProcessing(conversationId: string): void {
         ),
       );
     },
-    config.cotacao.bufferWindowSeconds * 1000,
+    config.cotacao.bufferWindowSeconds * 1000 + TIMER_MARGIN_MS,
   );
 
   timers.set(conversationId, timer);
 }
 
 async function processBuffer(conversationId: string): Promise<void> {
+  // A reivindicação só retorna bolhas se a conversa estiver quieta pela janela
+  // inteira; senão devolve vazio (ainda chegando mensagem) — evita responder no
+  // meio da rajada.
   const rows = await claimBufferedMessages(conversationId);
-  if (rows.length === 0) return; // nada expirado ainda / já processado
+  if (rows.length === 0) return;
 
   console.log(
     `[buffer] conversa ${conversationId}: ${rows.length} bolha(s) — acionando agente`,
@@ -88,8 +94,10 @@ export function startBufferSweeper(): void {
   if (sweeperStarted) return;
   sweeperStarted = true;
 
+  // Recuperação: independente da janela, varre a cada 5-15s (não precisa ser
+  // tão frequente quanto o timer em memória, que já dá a resposta rápida).
   const intervalMs =
-    Math.max(5, config.cotacao.bufferWindowSeconds) * 1000;
+    Math.min(15, Math.max(5, config.cotacao.bufferWindowSeconds)) * 1000;
   const timer = setInterval(() => {
     sweep().catch((error) => console.error("[buffer] sweeper falhou:", error));
   }, intervalMs);
@@ -103,7 +111,9 @@ async function sweep(): Promise<void> {
   if (reopened > 0) {
     console.warn(`[buffer] ${reopened} lock(s) preso(s) reaberto(s)`);
   }
-  const conversationIds = await pendingExpiredConversations();
+  // Só processa conversas quietas pela janela inteira (a reivindicação também
+  // reconfirma isso atomicamente).
+  const conversationIds = await quietConversations();
   for (const id of conversationIds) {
     await processBuffer(id).catch((error) =>
       console.error(`[buffer] sweep conversa ${id}:`, error),
